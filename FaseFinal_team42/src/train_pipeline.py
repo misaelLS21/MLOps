@@ -4,6 +4,9 @@ Pipeline orchestration for insurance project.
 import mlflow
 from pathlib import Path
 import pandas as pd
+import random
+import numpy as np
+import os
 from FaseFinal_team42.src.load_data import DataLoader
 from FaseFinal_team42.src.build_features import FeatureEngineer
 from FaseFinal_team42.src.train_model import ModelTrainer
@@ -14,6 +17,11 @@ class InsuranceMLflowPipeline:
         self.config = config
 
     def run(self):
+        # Fijar semillas para reproducibilidad
+        seed = self.config.get('random_seed', 42)
+        random.seed(seed)
+        np.random.seed(seed)
+        os.environ['PYTHONHASHSEED'] = str(seed)
         mlflow.set_experiment(self.config['mlflow_experiment'])
         with mlflow.start_run():
             # 1. Carga de datos
@@ -28,10 +36,17 @@ class InsuranceMLflowPipeline:
             for name, metrics in evaluator.items():
                 for metric, value in metrics.items():
                     mlflow.log_metric(f"{name}_{metric}", value)
+            # Guardar artefactos clave para reproducibilidad
+            mlflow.log_artifact(self.config['data']['train_path'], artifact_path='data')
+            mlflow.log_artifact(self.config['data']['test_path'], artifact_path='data')
+            # Guardar modelos
+            for name, model in trainer.models.items():
+                mlflow.sklearn.log_model(model.best_estimator_, f"model_{name}")
 
 if __name__ == "__main__":
     config = {
         "mlflow_experiment": "insurance_team42",
+        "random_seed": 42,
         "data": {
             "train_path": "data/ml_data/insurance_train.csv",
             "test_path": "data/ml_data/insurance_test.csv",

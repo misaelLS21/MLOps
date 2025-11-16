@@ -134,8 +134,46 @@ def train_and_evaluate(X_train, y_train, X_test, y_test):
         }
     # Guardar resultados
     import json
+    from datetime import datetime
+    import platform
+    # Guardar ml_metrics.json (como antes)
     with open(os.path.join(REPORTS_DIR, "ml_metrics.json"), "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
+    # --- Actualizar historial ml_metrics_history.json ---
+    history_path = os.path.join(os.path.dirname(__file__), '../reports/ml_metrics_history.json')
+    # Preparar registro de la ejecución
+    env_name = os.environ.get("VIRTUAL_ENV", platform.node())
+    record = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "env": os.path.basename(env_name) if env_name else "unknown",
+        "LogReg": {
+            "ROC_AUC": results["LogReg"].get("ROC_AUC"),
+            "PR_AUC": results["LogReg"].get("PR_AUC"),
+            "f1": results["LogReg"].get("f1")
+        },
+        "RandomForest": {
+            "ROC_AUC": results["RandomForest"].get("ROC_AUC"),
+            "PR_AUC": results["RandomForest"].get("PR_AUC"),
+            "f1": results["RandomForest"].get("f1")
+        },
+        "GradBoost": {
+            "ROC_AUC": results["GradBoost"].get("ROC_AUC"),
+            "PR_AUC": results["GradBoost"].get("PR_AUC"),
+            "f1": results["GradBoost"].get("f1")
+        }
+    }
+    # Leer historial existente o crear uno nuevo
+    if os.path.exists(history_path):
+        with open(history_path, "r", encoding="utf-8") as f:
+            history = json.load(f)
+    else:
+        history = []
+    history.append(record)
+    with open(history_path, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2, ensure_ascii=False)
+    # Log historial como artefacto en MLflow
+    import mlflow
+    mlflow.log_artifact(history_path, artifact_path="metrics_history")
     # Guardar curvas ROC y PR
     from sklearn.metrics import roc_curve, precision_recall_curve
     for name, proba in [
